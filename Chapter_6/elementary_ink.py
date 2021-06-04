@@ -44,7 +44,7 @@ for line in fake_list:
         # set real message color to white
         run = doc.paragraphs[paragraph_index].runs[0]   
         font = run.font
-        font.color.rgb = RGBColor(255, 255, 255)  # make it red to test
+        font.color.rgb = RGBColor(255, 0, 0)  # make it red to test
         count_real += 1
         
     else:
