@@ -22,24 +22,16 @@ rgb_colors_sets = {
 }
 
 
-def get_paragraphs_list(file):
+def get_paragraphs_text_list(file):
     document = docx.Document(file)
     return [paragraph.text for paragraph in document.paragraphs]
-
-
-def validate_fake_msg(fake_paragraphs, real_paragraphs):
-    empty_paragraphs_in_fake_msg = fake_paragraphs.count("")
-    len_real_msg = len(real_paragraphs)
-    if operator.le(empty_paragraphs_in_fake_msg, len_real_msg):
-        raise ValueError(
-            "Fake msg does not have enough empty paragraphs to cover"
-            f"real msg. We need {len_real_msg -  empty_paragraphs_in_fake_msg}"
-            " more empty lines in fake msg to be able to cover real msg.")
 
 
 def get_template_doc_with_letterhead(template_file):
     # load template that sets style, font, margins, etc.
     template_doc = docx.Document(template_file)
+
+    template_doc.styles['Normal'].font.name = 'Consolas'
 
     # add letterhead:
     template_doc.add_heading('Morland Holmes', 0)
@@ -51,50 +43,58 @@ def get_template_doc_with_letterhead(template_file):
     return template_doc
 
 
-def set_spacing(paragraph):
-    """Use docx to set line spacing between paragraphs."""
-    paragraph_format = paragraph.paragraph_format
-    paragraph_format.space_before = Pt(0)
-    paragraph_format.space_after = Pt(0)
+def fill_doc_with_real_msg_covering_fake_msg(doc, fake_list, real_msg):
+    # for line in fake_list:
+    #     if real_list and line == '':
+    #         paragraph = doc.add_paragraph(real_list.pop(0))
+    #         paragraph_index = len(doc.paragraphs) - 1
+    #
+    #         run = doc.paragraphs[paragraph_index].runs[0]
+    #         run.font.color.rgb = RGBColor(
+    #             **rgb_colors_sets["red"])  # make it red to test
+    #
+    #     else:
+    #         paragraph = doc.add_paragraph(line)
 
+    real_msg_letter_generator = get_next_letter_to_hide_generator(real_msg)()
 
-def fill_doc_with_real_msg_covering_fake_msg(doc, fake_list, real_list):
     for line in fake_list:
-        if real_list and line == '':
-            paragraph = doc.add_paragraph(real_list.pop(0))
-            paragraph_index = len(doc.paragraphs) - 1
+        line_char_list = list(line)
+        for char_position in range(len(line_char_list)):
+            if line_char_list[char_position].isspace():
+                try:
+                    letter_to_hide = real_msg_letter_generator.__next__()
+                    print(letter_to_hide)
+                except StopIteration:
+                    break
+                else:
+                    line_char_list[char_position] = letter_to_hide.upper()
+        paragraph = doc.add_paragraph(''.join(line_char_list))
+        for run in paragraph.runs:
+            print(run.text)
 
-            run = doc.paragraphs[paragraph_index].runs[0]
-            run.font.color.rgb = RGBColor(
-                **rgb_colors_sets["red"])  # make it red to test
 
-        else:
-            paragraph = doc.add_paragraph(line)
-
-        set_spacing(paragraph)
-    # TODO: Should this method return doc? It's not necessary, but it
-    #  would be in functional programming mindset.
+def get_next_letter_to_hide_generator(msg):
+    def gen():
+        for letter in msg:
+            yield letter
+    return gen
 
 
 def main():
-    fake_list = get_paragraphs_list('fakeMessage.docx')
+    fake_list = get_paragraphs_text_list('fakeMessage.docx')
 
     real_list = [
-        paragraph if paragraph != '' else None
-        for paragraph in get_paragraphs_list('realMessage_Vig.docx')
+        paragraph for paragraph in get_paragraphs_text_list('realMessage.docx')
     ]
 
-    # TODO: what is a good way to filter out empty strings? I could do filter,
-    #  list comprehension, loop, anything else? Which is best?
-    # real_list = list(filter(lambda x: x != '', real_list_with_empty_strs))
+    real_msg = ''.join(real_list).replace(' ', '')
+    print(f"Real msg: {real_msg}")
 
-    validate_fake_msg(fake_list, real_list)
+    doc = get_template_doc_with_letterhead('template_challenge.docx')
+    fill_doc_with_real_msg_covering_fake_msg(doc, fake_list, real_msg)
 
-    doc = get_template_doc_with_letterhead('template.docx')
-
-    fill_doc_with_real_msg_covering_fake_msg(doc, fake_list, real_list)
-
-    doc.save('ciphertext_message_letterhead.docx')
+    doc.save('challenge_result.docx')
 
     print("Done")
 
